@@ -1,4 +1,4 @@
-﻿# Automacoes SIGAA/SIGPS 2026
+# Automacoes SIGAA/SIGPS 2026
 
 Automacoes Playwright usadas no ambiente de implantacao para preparar processos, criar candidatos, inscreve-los e montar dados de teste para importacao de notas ENEM.
 
@@ -15,11 +15,112 @@ Instalacao inicial:
 
 ```powershell
 npm.cmd install
+npx.cmd playwright install chromium
 ```
 
 No PowerShell, use `npm.cmd` para executar os comandos npm deste projeto.
 
-## Fluxos
+## Passo a passo: onde adicionar os CPFs
+
+Execute os comandos na raiz do projeto, na mesma pasta do `package.json`. Os arquivos com CPFs não vêm do GitHub porque estão no `.gitignore`: crie suas listas localmente. Salve TXT e CSV em UTF-8 e mantenha o CPF como texto, com os 11 dígitos, inclusive zeros à esquerda. Não use notação científica no Excel.
+
+| Etapa | Arquivo na raiz | Como preencher |
+| --- | --- | --- |
+| Cadastrar candidatos | `cpfs-candidatos.txt` | Você adiciona um CPF por linha, sem cabeçalho. |
+| Inscrever candidatos cadastrados | `cpfs-cadastrados.txt` | Gerado pelo cadastro; é a entrada padrão de `selecionar-processo`. |
+| Inscrever Lato com categoria por candidato | `lista_lato_candidatos.csv` | Você informa `cpf;curso;categoria`; o curso pode ser omitido se informado em `--curso`. |
+| Avaliar candidatos inscritos | `lista_lato_candidato.csv` | Você informa `nome;cpf;nota 1;nota 2`, com nome igual ao cadastro no portal. |
+| Alterar notas já avaliadas | `atualizacao_notas_lato.csv` | Você informa `nome;cpf;nota 1;nota 2` com as novas notas. |
+
+**Atenção aos nomes:** a inscrição Lato usa `lista_lato_candidatos.csv` (plural); a avaliação usa `lista_lato_candidato.csv` (singular). São entradas diferentes e não são geradas automaticamente entre etapas. Os CPFs devem corresponder aos mesmos candidatos ao longo do fluxo.
+
+### 1. Colocar os CPFs na lista de cadastro
+
+Crie ou abra o arquivo:
+
+```powershell
+notepad.exe cpfs-candidatos.txt
+```
+
+Cole um CPF autorizado por linha, sem nome, título ou cabeçalho. Também são aceitos CPFs separados por vírgula e com pontos/traço. O script rejeita CPFs inválidos ou repetidos. Não cole os CPFs nos arquivos JavaScript.
+
+Se sua lista já está em `100_cpfs_validos.txt`, use `--cpfs 100_cpfs_validos.txt` em vez de copiar para outro arquivo. Esse nome não é a entrada padrão.
+
+### 2. Cadastrar primeiro um candidato e depois o lote
+
+```powershell
+npm.cmd run cadastrar-candidatos -- --cpfs cpfs-candidatos.txt --limite 1 --telas 1 --confirmar-cadastro
+```
+
+Confira o resultado no portal e em `cpfs-cadastrados.txt`. Depois execute o restante, ajustando o limite:
+
+```powershell
+npm.cmd run cadastrar-candidatos -- --cpfs cpfs-candidatos.txt --limite 100 --telas 3 --confirmar-cadastro
+```
+
+Esses comandos enviam cadastros ao ambiente. O script registra cadastros confirmados e também sincroniza CPFs quando identifica que o candidato já existe no portal. A senha de teste configurada no cadastro e nas inscrições é `Teste123`; contas existentes precisam ter a senha esperada pelos scripts.
+
+### 3. Escolher a inscrição: processo comum ou Lato por CSV
+
+Para o processo comum, a saída do cadastro já é a entrada da inscrição. Substitua os textos entre aspas pelos nomes exibidos no portal:
+
+```powershell
+npm.cmd run selecionar-processo -- --cpfs cpfs-cadastrados.txt --limite 1 --telas 1 --processo "NOME EXATO DO PROCESSO" --curso "NOME EXATO DO CURSO" --categoria "NOME EXATO DA CATEGORIA"
+```
+
+Esse comando **confirma a inscrição**. Após conferir um candidato, aumente `--limite` e, se necessário, `--telas` (até 4). Informe uma categoria fixa ou use `--distribuir-categorias`; sem categoria fixa ou distribuição, o script limita a execução a um candidato. O resultado fica em `cpfs-inscritos-processo-seletivo.txt`.
+
+Para Lato com categoria específica por CPF, crie `lista_lato_candidatos.csv`. Estrutura ilustrativa; substitua os marcadores antes de validar:
+
+```csv
+cpf;curso;categoria
+CPF_DE_TESTE_COM_11_DIGITOS;NOME EXATO DO CURSO;NOME EXATO DA CATEGORIA
+```
+
+Inclua somente candidatos já cadastrados. A inscrição lê os CPFs desse CSV, sem consultar automaticamente `cpfs-cadastrados.txt`. Valide o arquivo, teste o preenchimento sem concluir e depois confirme um candidato:
+
+```powershell
+npm.cmd run inscrever-lato-csv -- --csv lista_lato_candidatos.csv --validar-csv
+npm.cmd run inscrever-lato-csv -- --csv lista_lato_candidatos.csv --processo "NOME EXATO DO PROCESSO" --limite 1 --telas 1 --somente-validar-documentos
+npm.cmd run inscrever-lato-csv -- --csv lista_lato_candidatos.csv --processo "NOME EXATO DO PROCESSO" --limite 1 --telas 1
+```
+
+Depois da conferência, aumente `--limite`. Sem esse parâmetro, a inscrição Lato percorre todo o CSV e confirma os pendentes. O PDF padrão para upload é `docs_testes/pdf_teste.pdf`; use `--documento-pdf` para outro documento de teste. O resultado fica em `inscricoes-lato-confirmadas.jsonl`.
+
+### 4. Preparar as notas para avaliação e alteração
+
+Após a inscrição Lato, crie `lista_lato_candidato.csv` com o nome completo que aparece no portal, o mesmo CPF e as notas de cada candidato. Estrutura ilustrativa:
+
+```csv
+nome;cpf;nota 1;nota 2
+NOME COMPLETO NO PORTAL;CPF_DE_TESTE_COM_11_DIGITOS;80;75
+```
+
+Use um CPF por linha, sem duplicatas. Notas aceitam valores de 0 a 100 e até duas casas decimais. A categoria é opcional nesse arquivo e não define as notas. Confira os rótulos dos quesitos, o processo e o curso conforme a seção de avaliação abaixo.
+
+```powershell
+npm.cmd run avaliar-curricular -- --csv lista_lato_candidato.csv --validar-csv
+```
+
+Para alterar avaliações já salvas, prepare `atualizacao_notas_lato.csv` no mesmo formato, com as novas notas:
+
+```powershell
+npm.cmd run alterar-curricular -- --csv atualizacao_notas_lato.csv --validar-csv
+```
+
+Os comandos de validação acima só leem os arquivos locais. Para acessar o SIGAA e salvar avaliações, siga as instruções de credenciais e confirmação nas seções abaixo.
+
+### Retomar o fluxo e resolver erros de entrada
+
+- **Arquivo não encontrado:** confira o nome e a pasta; os arquivos de dados precisam ser criados localmente. No Windows, habilite a exibição de extensões para evitar `.txt.txt` ou `.csv.csv`.
+- **CPF inválido ou repetido:** corrija a lista de origem e preserve zeros à esquerda; não substitua por um CPF aleatório.
+- **Nenhum candidato pendente:** confira os registros de conclusão e o processo selecionado. Mantenha esses registros ao retomar uma execução.
+- **Candidato já cadastrado:** use uma lista local de contas existentes com `--cpfs` na inscrição, desde que a senha delas corresponda à configurada no script.
+- **Nome/CPF divergente na avaliação:** confira a identidade no portal e corrija a linha correspondente do CSV antes de executar novamente.
+
+Não preencha nem apague manualmente os checkpoints `cpfs-inscritos-processo-seletivo.txt` e `inscricoes-lato-confirmadas.jsonl` para forçar uma nova tentativa. Eles registram as inscrições verificadas no portal. Preserve também `cpfs-cadastrados.txt` para retomar o cadastro. Arquivos próprios informados por `--cpfs` ou `--csv` devem ser adicionados ao `.gitignore` antes de um commit.
+
+## Referência dos fluxos
 
 ### Inscrever candidatos Lato Sensu a partir do CSV
 
@@ -100,18 +201,6 @@ Opcoes principais:
 - `--distribuir-categorias`: alterna as categorias na ordem retornada pelo portal, usando a posicao do CPF na lista.
 
 Use `--curso` ou `--distribuir-cursos`, e `--categoria` ou `--distribuir-categorias`; nao combine os dois modos de cada escolha. O checkpoint `cpfs-inscritos-processo-seletivo.txt` guarda CPF, processo, curso e categoria confirmados. O script verifica a inscricao em “Meus Processos Seletivos” antes de gravar e ignora candidatos ja inscritos no mesmo processo, mesmo que o curso registrado seja diferente.
-
-### Inscricao no processo Lato Sensu
-
-O fluxo dedicado usa o processo `[LJ] - PROCESSO SELETIVO INTERNO LATO SENSU 2026.2 - ESTRATEGIA 1` e o mesmo arquivo de CPFs/checkpoint da inscricao comum. Depois da etapa de nome social, anexa `docs_testes/pdf_teste.pdf` a todos os campos de documento encontrados. Informe o curso e a categoria com os nomes exibidos pelo portal:
-
-```powershell
-npm.cmd run selecionar-lato-sensu -- --cpfs cpfs-cadastrados.txt --limite 1 --telas 1 --curso "NOME EXATO DO CURSO" --categoria "NOME EXATO DA CATEGORIA"
-```
-
-O fluxo processa um CPF por padrao. Para alternar ofertas ou categorias entre CPFs, use `--distribuir-cursos` ou `--distribuir-categorias`; confira as opcoes disponiveis no portal antes de ampliar o lote. O script confirma a inscricao e registra o resultado em `cpfs-inscritos-processo-seletivo.txt`.
-
-Para testar o preenchimento e os uploads sem concluir a inscricao, acrescente `--somente-validar-documentos`. O modo avanca ate o resumo final e para antes do botao de confirmacao; nao grava o CPF no checkpoint.
 
 ### Consultar Análise Curricular
 
@@ -208,7 +297,6 @@ Prefira validar alteracoes com `--limite 1 --telas 1` antes de executar um lote.
 - `automacao-processo-seletivo-interno.js`: inscreve candidatos Lato Sensu do CSV com curso/categoria vinculados ao CPF.
 - `automacao-auto-cadastro-candidatos.js`: auto-cadastra candidatos a partir de uma lista validada de CPFs.
 - `automacao-inscricao-processo-seletivo.js`: autentica cada candidato, preenche a inscricao, escolhe curso/categoria, confirma e valida o resultado no SIGPS.
-- `automacao-inscricao-processo-seletivo-lato-sensu.js`: inicia o mesmo fluxo fixado no processo Lato Sensu 2026.2.
 - `automacao-analise-curricular.js`: consulta solicitações de análise curricular filtradas por processo seletivo e curso.
 - `automacao-avaliar-curricular-lote.js`: preenche e confirma análises curriculares pendentes com resumo validado antes de cada envio.
 - `100_cpfs_validos.txt`: lista de origem usada na massa de candidatos de teste.
@@ -224,6 +312,3 @@ Prefira validar alteracoes com `--limite 1 --telas 1` antes de executar um lote.
 - `UFMA - Pré-Orçamento - SIGAA - SIGPS 2026_GRADUAÇÃO E LATO.pdf`: documento de referencia; nao e lido pelos scripts.
 
 Os arquivos `cpfs-cadastrados.txt`, `cpfs-inscritos-processo-seletivo.txt` e as listas/CSVs de teste contem identificadores e devem permanecer locais.
-
-
-
