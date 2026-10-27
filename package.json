@@ -1,0 +1,23 @@
+{
+  "name": "sigaa---sigps-2026",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "inscrever-lato-csv": "node automacao-processo-seletivo-interno.js",
+    "cadastrar-candidatos": "node automacao-auto-cadastro-candidatos.js",
+    "selecionar-processo": "node automacao-inscricao-processo-seletivo.js",
+    "selecionar-lato-sensu": "node automacao-inscricao-processo-seletivo-lato-sensu.js",
+    "analise-curricular": "node automacao-analise-curricular.js",
+    "avaliar-curricular": "node automacao-avaliar-curricular-lote.js",
+    "alterar-curricular": "node automacao-alterar-curricular-lote.js",
+    "test:avaliacao": "node --test tests/candidatos-avaliacao.test.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}

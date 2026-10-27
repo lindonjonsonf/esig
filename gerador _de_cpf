@@ -1,0 +1,29 @@
+import random
+
+def gerar_cpf():
+    # Gera os 9 primeiros dígitos aleatórios
+    digitos = [random.randint(0, 9) for _ in range(9)]
+    
+    # Primeiro dígito verificador
+    soma = sum(d * (10 - i) for i, d in enumerate(digitos))
+    resto = soma % 11
+    d1 = 0 if resto < 2 else 11 - resto
+    digitos.append(d1)
+    
+    # Segundo dígito verificador
+    soma = sum(d * (11 - i) for i, d in enumerate(digitos))
+    resto = soma % 11
+    d2 = 0 if resto < 2 else 11 - resto
+    digitos.append(d2)
+    
+    # Retorna formatado (ou sem pontos/traço se preferir apenas números)
+    c = "".join(str(d) for d in digitos)
+    return f"{c[:3]}.{c[3:6]}.{c[6:9]}-{c[9:]}"
+
+# Gera 600 CPFs únicos
+lista_cpfs = set()
+while len(lista_cpfs) < 600:
+    lista_cpfs.add(gerar_cpf())
+
+# Exibe separados por vírgula
+print(",".join(lista_cpfs))

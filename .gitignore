@@ -1,0 +1,29 @@
+cpfs-candidatos.txt
+lista_lato_candidatos.csv
+lista_lato_candidato.csv
+atualizacao_notas_lato.csv
+atualizacao_notas_lato.csv.csv
+inscricoes-lato-confirmadas.jsonl
+cpfs-cadastrados.txt
+100_cpfs_validos.txt
+cpfs-processo-selecionado.txt
+cpfs-inscritos-processo-seletivo.txt
+notas-enem-candidatos-teste.csv
+notas-enem-candidatos-teste_curso_1.csv
+
+# Dependencias e arquivos locais
+node_modules/
+.env
+.env.*
+!.env.example
+.playwright-mcp/
+test-results/
+playwright-report/
+*.log
+
+# Planilhas com dados de candidatos
+modelo_importacao_notas_enem.csv
+
+# Documentos e capturas locais
+/UFMA*.pdf
+/sigaa-processo-seletivo-interno.png
